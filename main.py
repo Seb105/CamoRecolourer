@@ -65,9 +65,9 @@ class ColourBarGroup(tk.Frame):
         super().__init__(parent)
         self.parent = parent
         self.root = root
-        self.input_bar = InputColourBar(self, root, 'Input')
+        self.input_bar = ColourBar(self, root, 'Input', None)
         self.input_bar.pack(side=tk.LEFT, anchor=tk.W)
-        self.output_bar = OutputColourBar(self, root, 'Output')
+        self.output_bar = ColourBar(self, root, 'Output', self.output_button_pressed)
         self.output_bar.pack(side=tk.LEFT, anchor=tk.W)
 
     def set_both_colours(self, colours: list[tuple[int, int, int]]):
@@ -78,24 +78,35 @@ class ColourBarGroup(tk.Frame):
         self.input_bar.update_colours(colours)
         self.output_bar.update_colours(colours)
 
+    def output_button_pressed(self, button: tk.Button):
+        colour = colorchooser.askcolor()[0]
+        if colour is None:
+            return
+        self.output_bar.set_button_colour(button, colour)
+        self.root.application.calculate_output()
 
-class InputColourBar(tk.Frame):
-    def __init__(self, parent, root, name: str):
+
+
+class ColourBar(tk.Frame):
+    def __init__(self, parent, root, name: str, command: callable):
         super().__init__(parent, highlightbackground="black", highlightthickness=1)
         self.parent = parent
         self.root = root
         self.box_size = root.preview_size//7
         self.label = tk.Label(self, text=name)
         self.label.pack(side=tk.TOP, expand=False)
+        self.command = command
         self.colour_container = tk.Frame(self, width=self.box_size,
                                          height=root.winfo_height())
         self.colour_container.pack(side=tk.TOP)
         self.colour_box_width = len("(255, 255, 255)")
 
-    def create_button(self, colour: tuple[int, int, int], command=None):
+    def create_button(self, colour: tuple[int, int, int]):
         colour_box = tk.Button(self.colour_container)
-        if command is not None:
-            command = functools.partial(command, colour_box)
+        if self.command is not None:
+            command = functools.partial(self.command, colour_box)
+        else:
+            command = None
         self.set_button_colour(colour_box, colour)
         colour_box.configure(width=self.colour_box_width, height=0, command=command)
         colour_box.pack(side=tk.TOP, expand=True)
@@ -105,7 +116,6 @@ class InputColourBar(tk.Frame):
         avg_colour = sum(colour)//3
         text_colour = "black" if avg_colour > 128 else "white"
         button.configure(bg=colour_hex, text=str(colour), fg=text_colour)
-
 
     def cleanup(self):
         for child in self.colour_container.winfo_children():
@@ -127,26 +137,6 @@ class InputColourBar(tk.Frame):
         elif num_colours < num_boxes:
             for i in range(num_boxes, num_colours, -1):
                 self.colour_container.winfo_children()[i-1].destroy()
-
-
-class OutputColourBar(InputColourBar):
-    def __init__(self, parent, root, name: str):
-        super().__init__(parent, root, name)
-
-    def set_colours(self, colours: list[tuple[int, int, int]]):
-        self.cleanup()
-        for colour in colours:
-            self.create_button(colour, self.button_colour_set)
-
-    def button_colour_set(self, button: tk.Button):
-        current_colour = button["background"]
-        rgb, _ = colorchooser.askcolor(
-            title="Choose colour", initialcolor=current_colour)
-        if rgb is None:
-            return
-        self.set_button_colour(button, rgb)
-        self.root.application.calculate_output()
-
 
 class ConfigBox(tk.Frame):
     def __init__(self, parent, root):
@@ -317,7 +307,7 @@ class Application():
         self.config_box.num_colours_var.set(str(num_dominant_colours))
         if num_dominant_colours == 0:
             messagebox.showerror(
-                "Error", "No dominant colours found in image.\nTry increasing the threshold or adding colours manually.")
+                "Error", "No dominant colours found in image.\nTry decreasing the threshold then increasing the number of colours.")
             return
         for colour_bar in [self.colour_bar_group.input_bar, self.colour_bar_group.output_bar]:
             colour_bar.set_colours(self.dominant_colours_frequency)
