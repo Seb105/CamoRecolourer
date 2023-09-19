@@ -1,3 +1,4 @@
 main.dist/*
 main.onefile-build/*
 main.build/*
+*.exe
