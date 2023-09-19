@@ -5,7 +5,7 @@
 
 This program was written in Python and compiled using Nuitka, and therefore the standalone executable bundles the entire Python runtime.
 
-Antivirus programs often falsely detect compiled python executables as a virus as a consequence of how it is compiled
+Antivirus programs often falsely detect compiled python executables as a virus, due to this compilation process bundling the runtime.
 
 ### Running without the executable:
 
