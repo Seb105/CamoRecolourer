@@ -10,7 +10,7 @@ from numpy import array, uint8, float64, reshape, append, argpartition, linalg, 
 from sklearn.cluster import KMeans
 from ast import literal_eval
 
-DEFAULT_THRESHOLD = .01
+DEFAULT_THRESHOLD = .035
 DEFAULT_MAX_COLOURS = 1
 
 
@@ -82,8 +82,8 @@ class ColourBarGroup(tk.Frame):
         self.output_bar.update_colours(colours)
 
     def output_colour_button_change(self, button: tk.Button):
-        colour = colorchooser.askcolor()[0]
         current_colour = ImageColor.getcolor(button["background"], "RGB")
+        colour = colorchooser.askcolor(color=current_colour)[0]
         if colour is None or colour == current_colour:
             return
         self.output_bar.colour_replacement_cache[current_colour] = colour
@@ -500,8 +500,7 @@ def k_cluster_main(num_colours: int, path: str):
     img_array = array(img.convert("RGB", palette=Image.ADAPTIVE))
     img2D = img_array.reshape(-1, 3)
     # Apply KMeans clustering
-    n_init = min(num_colours*2, 10)
-    kmeans_model = KMeans(n_clusters=num_colours, n_init=n_init, random_state=0, tol=1e-10)
+    kmeans_model = KMeans(n_clusters=num_colours, n_init='auto', random_state=0, tol=1e-10)
     cluster_labels = kmeans_model.fit_predict(img2D)
 
     # Get the cluster centres
