@@ -27,6 +27,9 @@ If this automatic analysis has too many or too few colours, you can tweak the de
 ### Max colours:
 The maximum number of colours the algorithm will detect.
 
+### Input colours
+You can manually change the input colours if the detection is wrong. Usually the detection is good but this can add a little manual nudging.
+
 ## Getting an output
 
 When an image is loaded, two identical images of the camo will load.
