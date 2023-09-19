@@ -12,7 +12,7 @@ from ast import literal_eval
 
 DEFAULT_THRESHOLD = .025
 DEFAULT_MAX_COLOURS = 1
-
+VERSION = "v0.2.0"
 
 class FileDisplay(tk.Frame):
     def __init__(self, parent: Frame, root: Frame, button_text: str, default_text: str, command: callable):
@@ -174,7 +174,7 @@ class ConfigBox(tk.Frame):
 class Application():
     def __init__(self):
         root = tk.Tk()
-        root.title('Seb\'s Camo Recolourer')
+        root.title(f'Seb\'s Camo Recolourer {VERSION}')
         screen_size_ratio = 2/3
         window_width = int(root.winfo_screenwidth() * screen_size_ratio)
         # window_height = int(root.winfo_screenheight() * screen_size_ratio)
