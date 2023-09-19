@@ -1,4 +1,5 @@
 main.dist/*
 main.onefile-build/*
 main.build/*
+__pycache__/*
 *.exe
