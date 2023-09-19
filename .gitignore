@@ -3,3 +3,4 @@ main.onefile-build/*
 main.build/*
 __pycache__/*
 *.exe
+nuitka-crash-report.xml

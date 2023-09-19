@@ -5,7 +5,7 @@
 
 This program was written in Python and compiled using Nuitka, and therefore the standalone executable bundles the entire Python runtime.
 
-Antivirus programs often falsely detect compiled python executables as viruses, due to how the program runs.
+Antivirus programs often falsely detect compiled python executables as a virus as a consequence of how it is compiled
 
 ### Running without the executable:
 
@@ -22,9 +22,7 @@ Then, run main.py and the program will run identically to the executable.
 ## Loading an image
 
 When a camo is loaded , it will be automatically analysed to find the dominant colours of the image.
-If this automatic analysis has too many or too few colours, you can tweak two detection parameters:
-### Threshold:
-Number 0..1 which controls how often the colour must appear to be counted. 0.05 = 5%, 0.1 = 10% etc.
+If this automatic analysis has too many or too few colours, you can tweak the detection parameters:
 
 ### Max colours:
 The maximum number of colours the algorithm will detect.
