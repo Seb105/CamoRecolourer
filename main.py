@@ -92,6 +92,21 @@ class InputColourBar(tk.Frame):
         self.colour_container.pack(side=tk.TOP)
         self.colour_box_width = len("(255, 255, 255)")
 
+    def create_button(self, colour: tuple[int, int, int], command=None):
+        colour_box = tk.Button(self.colour_container)
+        if command is not None:
+            command = functools.partial(command, colour_box)
+        self.set_button_colour(colour_box, colour)
+        colour_box.configure(width=self.colour_box_width, height=0, command=command)
+        colour_box.pack(side=tk.TOP, expand=True)
+
+    def set_button_colour(self, button: tk.Button, colour: tuple[int, int, int]):
+        colour_hex = f'#{colour[0]:02x}{colour[1]:02x}{colour[2]:02x}'
+        avg_colour = sum(colour)//3
+        text_colour = "black" if avg_colour > 128 else "white"
+        button.configure(bg=colour_hex, text=str(colour), fg=text_colour)
+
+
     def cleanup(self):
         for child in self.colour_container.winfo_children():
             child.destroy()
@@ -99,11 +114,7 @@ class InputColourBar(tk.Frame):
     def set_colours(self, colours: list[tuple[int, int, int]]):
         self.cleanup()
         for colour in colours:
-            colour_hex = f'#{colour[0]:02x}{colour[1]:02x}{colour[2]:02x}'
-            colour_box = tk.Button(self.colour_container,
-                                   bg=colour_hex, text=str(colour))
-            colour_box.configure(width=self.colour_box_width, height=0)
-            colour_box.pack(side=tk.TOP, expand=True)
+            self.create_button(colour)
 
     def update_colours(self, new_colours):
         # If the number of colours has changed add or remove boxes as necessary
@@ -112,11 +123,7 @@ class InputColourBar(tk.Frame):
         if num_colours > num_boxes:
             for i in range(num_boxes, num_colours):
                 colour = new_colours[i]
-                colour_hex = f'#{colour[0]:02x}{colour[1]:02x}{colour[2]:02x}'
-                colour_box = tk.Button(self.colour_container,
-                                       bg=colour_hex, text=str(colour))
-                colour_box.configure(width=self.colour_box_width, height=0)
-                colour_box.pack(side=tk.TOP, expand=True)
+                self.create_button(colour)
         elif num_colours < num_boxes:
             for i in range(num_boxes, num_colours, -1):
                 self.colour_container.winfo_children()[i-1].destroy()
@@ -129,18 +136,15 @@ class OutputColourBar(InputColourBar):
     def set_colours(self, colours: list[tuple[int, int, int]]):
         self.cleanup()
         for colour in colours:
-            colour_hex = f'#{colour[0]:02x}{colour[1]:02x}{colour[2]:02x}'
-            colour_box = tk.Button(self.colour_container,
-                                   bg=colour_hex, text=str(colour))
-            colour_box.configure(width=self.colour_box_width, height=0, command=functools.partial(
-                self.button_colour_set, colour_box))
-            colour_box.pack(side=tk.TOP, expand=True)
+            self.create_button(colour, self.button_colour_set)
 
     def button_colour_set(self, button: tk.Button):
         current_colour = button["background"]
-        colour_code = colorchooser.askcolor(
+        rgb, _ = colorchooser.askcolor(
             title="Choose colour", initialcolor=current_colour)
-        button.configure(bg=colour_code[1], text=str(colour_code[0]))
+        if rgb is None:
+            return
+        self.set_button_colour(button, rgb)
         self.root.application.calculate_output()
 
 
