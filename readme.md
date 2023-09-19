@@ -13,6 +13,7 @@ If you don't trust the executable due to this antivirus warning, you can downloa
 ```pip
 pip install tkinter
 pip install Pillow
+pip install scikit-learn
 ```
 Then, run main.py and the program will run identically to the executable.
 
