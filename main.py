@@ -10,7 +10,7 @@ from numpy import array, uint8, float64, reshape, append, argpartition, linalg, 
 from sklearn.cluster import KMeans
 from ast import literal_eval
 
-DEFAULT_THRESHOLD = .035
+DEFAULT_THRESHOLD = .025
 DEFAULT_MAX_COLOURS = 1
 
 
@@ -119,7 +119,9 @@ class ColourBar(tk.Frame):
 
     def set_button_colour(self, button: tk.Button, colour: tuple[int, int, int]):
         colour_hex = f'#{colour[0]:02x}{colour[1]:02x}{colour[2]:02x}'
-        avg_colour = sum(colour)//3
+        r, g, b = colour
+        # Get avg colour using perceived brightness
+        avg_colour = r*0.299 + g*0.587 + b*0.114
         text_colour = "black" if avg_colour > 128 else "white"
         button.configure(bg=colour_hex, text=str(colour), fg=text_colour)
 
@@ -147,7 +149,7 @@ class ConfigBox(tk.Frame):
         recalc_command = partial(root.application.recalc_colours)
         self.parent = parent
         self.root: Application = root
-        self.num_colours_label = tk.Label(self, text="Max colours:")
+        self.num_colours_label = tk.Label(self, text="Number of colours:")
         self.num_colours_label.pack(side=tk.LEFT, expand=False)
         self.num_colours_var = tk.StringVar(value=str(DEFAULT_MAX_COLOURS))
         self.num_colours_var.trace("w", recalc_command)
@@ -202,21 +204,24 @@ class Application():
 
         self.camo_load_frame = FileDisplay(
             root, root, 'Load Camo', 'No file selected', self.select_image_file)
-        self.camo_load_frame.grid(row=0, column=0, sticky=tk.W)
+        self.camo_load_frame.grid(row=0, column=0, columnspan=3, sticky=tk.W)
+
+        self.config_box = ConfigBox(root, root)
+        self.config_box.grid(row=0, column=3, sticky=tk.W)
+
+        self.colour_bar_group = ColourBarGroup(root, root)
+        self.colour_bar_group.grid(row=1, column=0, columnspan=2, sticky=tk.N)
 
         self.input_output_frame = InputOutputFrame(
             root, root, root.preview_size)
-        self.input_output_frame.grid(row=1, column=0, columnspan=2)
+        self.input_output_frame.grid(row=1, column=2, columnspan=2)
 
         self.camo_save_frame = FileDisplay(
             root, root, 'Save Camo', 'No destination selected', self.save_image)
         self.camo_save_frame.grid(row=2, column=0, sticky=tk.W)
 
-        self.config_box = ConfigBox(root, root)
-        self.config_box.grid(row=0, column=1, sticky=tk.N + tk.E + tk.S)
 
-        self.colour_bar_group = ColourBarGroup(root, root)
-        self.colour_bar_group.grid(row=1, column=2, rowspan=99, sticky=tk.N)
+
 
     def select_image_file(self, file_display: FileDisplay):
         filename = filedialog.askopenfilename(
@@ -326,7 +331,7 @@ class Application():
             return
         self.k_cluster_analysis(threshhold, max_colours)
         self.colour_bar_group.update_both_colours(
-            self.dominant_colours_frequency)
+            self.dominant_colours_brightness)
         self.calculate_output_3d()
 
     def reset_current_image(self):
@@ -343,8 +348,7 @@ class Application():
             messagebox.showerror(
                 "Error", "No dominant colours found in image.\nTry decreasing the threshold then increasing the number of colours.")
             return
-        for colour_bar in [self.colour_bar_group.input_bar, self.colour_bar_group.output_bar]:
-            colour_bar.set_colours(self.dominant_colours_frequency)
+        self.colour_bar_group.set_both_colours(self.dominant_colours_brightness)
         self.calculate_output_3d()
 
     # def calculate_output(self):
