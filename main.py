@@ -264,36 +264,6 @@ class Application():
         self.output_image = self.input_image.copy()
         input_canvas.set_image(self.input_image)
         output_canvas.set_image(self.input_image)
-        # output_canvas.create_image(canvas_width//2, canvas_height//2, image=self.input_photoImage)
-
-    # def analyse_image(self, threshhold=None, max_colours=None):
-    #     if self.input_image is None:
-    #         return
-    #     img = self.input_image.convert("RGB")
-    #     # Percentage of pixels
-    #     if threshhold is None:
-    #         threshhold = float(self.config_box.threshold_var.get())
-
-    #     num_pixels = img.width * img.height
-    #     # Returns (num_pixels, colour)
-    #     colours = img.getcolors(num_pixels)
-    #     colours.sort(key=lambda x: x[0], reverse=True)
-    #     if max_colours is None:
-    #         max_colours = min(len(colours), int(
-    #             self.config_box.num_colours_var.get()))
-    #     colours = colours[:max_colours]
-    #     threhshold_value = num_pixels * threshhold
-    #     dominant_colours_frequency = [x[1]
-    #                         for x in colours if x[0] > threhshold_value]
-    #     # colours_dominant.sort(key=lambda x: rgb_to_hsv(*x[1])[2])
-    #     dominant_colours_brightness = sorted(
-    #         dominant_colours_frequency, key=lambda x: sqrt(sum(y**2 for y in x)))
-    #     # Store index of dominant colours in original list
-    #     self.dominant_colours_frequency = dominant_colours_frequency
-    #     self.dominant_colours_brightness = dominant_colours_brightness
-    #     # When sorted by brightness, the first colour is the darkest. Store index of highest frequency colour where 0 is the most frequent
-    #     self.dominant_colour_indeces = [self.dominant_colours_frequency.index(
-    #         x) for x in self.dominant_colours_brightness]
 
     def estimate_num_dominant_colours(self, img: Image.Image, threshhold=None):
         # Percentage of pixels
@@ -334,7 +304,7 @@ class Application():
         self.k_cluster_analysis(threshhold, max_colours)
         self.colour_bar_group.update_both_colours(
             self.dominant_colours_brightness)
-        self.calculate_output_3d()
+        self.calculate_output()
 
     def reset_current_image(self):
         if self.input_image is None:
@@ -352,48 +322,10 @@ class Application():
             return
         self.colour_bar_group.set_both_colours(
             self.dominant_colours_brightness)
-        self.calculate_output_3d()
+        self.calculate_output()
 
-    # def calculate_output(self):
-    #     print("Calculating output")
-    #     if self.input_image is None:
-    #         return
-    #     input_colour_boxes = self.colour_bar_group.input_bar.colour_container.winfo_children()
-    #     output_colour_boxes = self.colour_bar_group.output_bar.colour_container.winfo_children()
-    #     if max(len(input_colour_boxes), len(output_colour_boxes)) == 0:
-    #         return
-    #     input_colours_unsorted = [ImageColor.getcolor(
-    #         x["background"], "RGB") for x in input_colour_boxes]
-    #     output_colours_unsorted = [ImageColor.getcolor(
-    #         x["background"], "RGB") for x in output_colour_boxes]
 
-    #     # Sort input colours by the frequency index
-    #     input_colours = [input_colours_unsorted[i]
-    #                      for i in self.dominant_colour_indeces]
-    #     output_colours = [output_colours_unsorted[i]
-    #                       for i in self.dominant_colour_indeces]
-
-    #     conversion_table_rgb = list(zip(input_colours, output_colours))
-    #     # print(input_colours)
-    #     # print(output_colours)
-
-    #     # Create new palette
-    #     input_img = self.input_image.convert("P", palette=Image.ADAPTIVE)
-    #     input_palette = input_img.getpalette()
-    #     output_palette = []
-    #     for i in range(len(input_palette)//3):
-    #         pixel = input_palette[i*3:i*3+3]
-    #         pixel_new = convert_pixel_rgb(pixel, conversion_table_rgb)
-    #         output_palette.extend(pixel_new)
-    #     output_img = input_img.copy()
-    #     output_img.putpalette(output_palette)
-    #     output_img = output_img.convert("RGB")
-    #     # flag_img.convert("RGB").show()
-    #     # camo_img.convert("RGB").show()
-    #     self.output_image = output_img
-    #     self.input_output_frame.output_frame.set_image(output_img)
-
-    def calculate_output_3d(self):
+    def calculate_output(self):
         print("Calculating output in 3d")
         if self.input_image is None:
             return
@@ -409,7 +341,7 @@ class Application():
         input_img = self.input_image.convert("P", palette=Image.ADAPTIVE)
         # Bad hash, but it works
         input_palette_flat = tuple(input_img.getpalette())
-        output_palette = calc_new_palette_3d(
+        output_palette = calc_new_palette(
             input_colours, output_colours, input_palette_flat)
         # Flatten the output palette
         output_img = input_img.copy()
@@ -426,7 +358,7 @@ class Application():
 
 
 @cache
-def calc_new_palette_3d(input_colours, output_colours, input_palette_flat: str):
+def calc_new_palette(input_colours, output_colours, input_palette_flat: str):
     # Palette provied as str so it can be cached
     input_palette = array((input_palette_flat), dtype=uint8).reshape(-1, 3)
     input_colours = array(input_colours, dtype=uint8)
@@ -468,39 +400,6 @@ def calc_new_palette_3d(input_colours, output_colours, input_palette_flat: str):
     return output_palette
 
 
-def convert_pixel_rgb(pixel: tuple[int, int, int], conversion_table_rgb: list[tuple[tuple[int, int, int], tuple[int, int, int]]]) -> tuple[int, int, int]:
-    # If the magnitude is more than the magnitude of the last colour, use the last colour
-    mag = sqrt(sum(x**2 for x in pixel))
-    max_mag = sqrt(3*255**2)
-    min_mag = 0
-    if mag > max_mag or mag < min_mag:
-        raise Exception("Pixel not in conversion table")
-    # If the magnitude is less than the magnitude of the first colour, use the first colour
-    if mag <= sqrt(sum(x**2 for x in conversion_table_rgb[0][0])):
-        return conversion_table_rgb[0][1]
-    # If the magnitude is more than the magnitude of the last colour, use the last colour
-    if mag >= sqrt(sum(x**2 for x in conversion_table_rgb[-1][0])):
-        return conversion_table_rgb[-1][1]
-
-    # Otherwise, find the two colours to interpolate between
-    for i, (next_source_colour, next_camo_colour) in enumerate(conversion_table_rgb):
-        next_mag = sqrt(sum(x**2 for x in next_source_colour))
-        if i == 0:
-            prev_source_colour, prev_camo_colour = conversion_table_rgb[-1]
-            prev_mag = sqrt(sum(x**2 for x in prev_source_colour)) - max_mag
-        else:
-            prev_source_colour, prev_camo_colour = conversion_table_rgb[i-1]
-            prev_mag = sqrt(sum(x**2 for x in prev_source_colour))
-        if prev_mag < mag <= next_mag:
-            # Calculate the percentage of the way between the two colours
-            amount_done = (mag - prev_mag) / (next_mag - prev_mag)
-            # Interpolate between the two camo colours
-            camo_colour = interpolate_colour_rgb(
-                prev_camo_colour, next_camo_colour, amount_done)
-            return camo_colour
-    raise Exception("Pixel not in conversion table")
-
-
 @cache
 def k_cluster_main(num_colours: int, path: str):
     target_px = 1024**2
@@ -535,18 +434,6 @@ def k_cluster_main(num_colours: int, path: str):
     dominant_colours_brightness = sorted(
         dominant_colours_frequency, key=lambda x: sqrt(sum(y**2 for y in x)))
     return dominant_colours_frequency, dominant_colours_brightness
-
-
-def interpolate_colour_rgb(colour1: tuple[int, int, int], colour2: tuple[int, int, int], amount_done: float) -> tuple[int, int, int]:
-    # Interpolate each colour channel, accounting for wraparound
-    colour = []
-    for i in range(3):
-        channel1 = colour1[i]
-        channel2 = colour2[i]
-        channel = channel1 + (channel2 - channel1) * amount_done
-        channel %= 256
-        colour.append(channel)
-    return tuple(int(x) for x in colour)
 
 
 def main():
