@@ -417,7 +417,7 @@ def k_cluster_main(num_colours: int, path: str):
     # Apply KMeans clustering
     n_init = 20
     kmeans_model = KMeans(n_clusters=num_colours,
-                          n_init=n_init, random_state=0, tol=1e-10)
+                          n_init=n_init, random_state=0, tol=1e-10, algorithm="elkan")
     cluster_labels = kmeans_model.fit_predict(img2D)
 
     # Get the cluster centres
