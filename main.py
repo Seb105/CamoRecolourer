@@ -4,6 +4,7 @@
 from math import sqrt
 import tkinter as tk
 from tkinter import Frame, filedialog, messagebox, colorchooser
+import tkinter.ttk as ttk
 from PIL import Image, ImageTk, ImageColor
 from functools import partial, cache
 from numpy import array, uint8, float64, reshape, append, argpartition, linalg, empty, array_equal, zeros
@@ -25,6 +26,42 @@ class FileDisplay(tk.Frame):
         self.display = tk.Label(self, text=default_text)
         self.button.pack(side=tk.LEFT)
         self.display.pack(side=tk.LEFT)
+
+class ColourTransposer(tk.Frame):
+    def __init__(self, parent: Frame, root: Frame, button_text: str, default_text: str, command: callable):
+        super().__init__(parent)
+        self.parent = parent
+        self.root = root
+        self.file_path = None
+        self.button = tk.Button(self, text=button_text,
+                                command=lambda: command(self))
+        
+        self.instruction = tk.Label(self, text="Match transpose colours by:")
+
+        self.transpose_modes = ["Brightness", "Frequency"]
+        self.transpose_mode = tk.StringVar(value=self.transpose_modes[0])
+        self.transpose_mode.trace("w", self.transpose_mode_changed)
+        self.transpose_mode_dropdown = ttk.Combobox(
+            self, textvariable=self.transpose_mode, values=self.transpose_modes)
+        
+        self.display = tk.Label(self, text=default_text)
+
+
+        self.button.pack(side=tk.LEFT)
+        self.instruction.pack(side=tk.LEFT, padx=35)
+        self.transpose_mode_dropdown.pack(side=tk.LEFT)
+        self.display.pack(side=tk.LEFT, padx=15)
+
+    def transpose_mode_changed(self, *_):
+        if self.transpose_mode.get() not in self.transpose_modes:
+            self.transpose_mode.set(self.transpose_modes[0])
+            return
+        if self.file_path is None:
+            return
+        self.root.application.transpose_colours(self)
+        
+
+
 
 
 class ImageFrame(tk.Frame):
@@ -65,14 +102,13 @@ class InputOutputFrame(tk.Frame):
 
 
 class ColourBar(tk.Frame):
-    def __init__(self, parent, root, name: str, command: callable):
+    def __init__(self, parent, root, name: str):
         super().__init__(parent, highlightbackground="black", highlightthickness=1)
         self.parent = parent
         self.root = root
         self.box_size = root.preview_size//7
         self.label = tk.Label(self, text=name)
         self.label.pack(side=tk.TOP, expand=False)
-        self.command = command
         self.colour_container = tk.Frame(self, width=self.box_size,
                                          height=root.winfo_height())
         self.colour_container.pack(side=tk.TOP)
@@ -81,10 +117,7 @@ class ColourBar(tk.Frame):
 
     def create_button(self, colour: tuple[int, int, int]):
         colour_box = tk.Button(self.colour_container)
-        if self.command is not None:
-            command = partial(self.command, colour_box, self)
-        else:
-            command = None
+        command = partial(self.bar_colour_button_change, colour_box)
         self.set_button_colour(colour_box, colour)
         colour_box.configure(width=self.colour_box_width,
                              height=0, command=command)
@@ -109,12 +142,19 @@ class ColourBar(tk.Frame):
             self.create_button(colour)
 
     def update_colours(self, colours):
-        # If the number of colours has changed add or remove boxes as necessary
         self.cleanup()
         for colour in colours:
             new_colour = self.colour_replacement_cache.get(colour, colour)
             self.create_button(new_colour)
 
+    def bar_colour_button_change(self, button: tk.Button):
+        current_colour = ImageColor.getcolor(button["background"], "RGB")
+        colour = colorchooser.askcolor(color=current_colour)[0]
+        if colour is None or colour == current_colour:
+            return
+        self.colour_replacement_cache[current_colour] = colour
+        self.set_button_colour(button, colour)
+        self.root.application.calculate_output()
 
 class ColourBarGroup(tk.Frame):
     def __init__(self, parent: Frame, root: Frame):
@@ -122,10 +162,10 @@ class ColourBarGroup(tk.Frame):
         self.parent = parent
         self.root = root
         self.input_bar = ColourBar(
-            self, root, 'Input', self.bar_colour_button_change)
+            self, root, 'Input')
         self.input_bar.pack(side=tk.LEFT, anchor=tk.W)
         self.output_bar = ColourBar(
-            self, root, 'Output', self.bar_colour_button_change)
+            self, root, 'Output')
         self.output_bar.pack(side=tk.LEFT, anchor=tk.W)
 
     def set_both_colours(self, colours: list[tuple[int, int, int]]):
@@ -136,21 +176,12 @@ class ColourBarGroup(tk.Frame):
         self.input_bar.update_colours(colours)
         self.output_bar.update_colours(colours)
 
-    def bar_colour_button_change(self, button: tk.Button, colour_bar: ColourBar):
-        current_colour = ImageColor.getcolor(button["background"], "RGB")
-        colour = colorchooser.askcolor(color=current_colour)[0]
-        if colour is None or colour == current_colour:
-            return
-        colour_bar.colour_replacement_cache[current_colour] = colour
-        colour_bar.set_button_colour(button, colour)
-        self.root.application.calculate_output_3d()
-
 
 class ConfigBox(tk.Frame):
     def __init__(self, parent, root):
         super().__init__(parent, highlightbackground="black", highlightthickness=1)
         self.configure(width=root.preview_size//7 * 2, height=555)
-        recalc_command = partial(root.application.recalc_colours)
+        recalc_command = partial(root.application.recalc_input)
         self.parent = parent
         self.root: Application = root
         self.num_colours_label = tk.Label(self, text="Number of colours:")
@@ -210,29 +241,73 @@ class Application():
             root, root, 'Load Camo', 'No file selected', self.select_image_file)
         self.camo_load_frame.grid(row=0, column=0, columnspan=3, sticky=tk.W)
 
+        self.colour_transposer = ColourTransposer(root, root, 'Transpose Colours From Camo', "no file selected", self.transpose_colours_dialog)
+        self.colour_transposer.grid(row=1, column=0, columnspan=3, sticky=tk.W)
+
         self.config_box = ConfigBox(root, root)
         self.config_box.grid(row=0, column=3, sticky=tk.W)
 
         self.colour_bar_group = ColourBarGroup(root, root)
-        self.colour_bar_group.grid(row=1, column=0, columnspan=2, sticky=tk.N)
+        self.colour_bar_group.grid(row=2, column=0, columnspan=2, sticky=tk.N)
 
         self.input_output_frame = InputOutputFrame(
             root, root, root.preview_size)
-        self.input_output_frame.grid(row=1, column=2, columnspan=2)
+        self.input_output_frame.grid(row=2, column=2, columnspan=2)
 
         self.camo_save_frame = FileDisplay(
             root, root, 'Save Camo', 'No destination selected', self.save_image)
-        self.camo_save_frame.grid(row=2, column=0, sticky=tk.W)
+        self.camo_save_frame.grid(row=3, column=0, sticky=tk.W)
 
-    def select_image_file(self, file_display: FileDisplay):
-        filename = filedialog.askopenfilename(
+    def transpose_colours_dialog(self, transposer: ColourTransposer):
+        if self.input_image is None:
+            transposer.display['text'] = "No input image selected!"
+            return
+
+        file_path = filedialog.askopenfilename(
             title='Open a file',
             initialdir='/',
             filetypes=self.filetypes)
-        file_display.display['text'] = filename
+        
+        if file_path == '':
+            return
+        
+        transposer.file_path = file_path
+        transposer.display['text'] = file_path
+
+        return self.transpose_colours(transposer)
+
+    def transpose_colours(self, transposer):
+        num_colours = int(self.config_box.num_colours_var.get())
+        try:
+            colours_frequency, colours_brightness = k_cluster_main(num_colours, transposer.file_path)
+            if len(colours_frequency) <  num_colours:
+                self.config_box.num_colours_var.set(str(len(colours_frequency)))
+                # self.recalc_input()
+
+            if transposer.transpose_mode.get() == transposer.transpose_modes[0]:
+                new_palette = colours_brightness
+            else:
+                new_palette = [colours_frequency[x] for x in self.dominant_colour_frequency_indeces]
+                
+            self.colour_bar_group.output_bar.update_colours(new_palette)
+            self.calculate_output()
+        except (IOError, AttributeError) as e:
+            transposer.display['text'] = e
+            return
+
+
+    def select_image_file(self, file_display: FileDisplay):
+        file_path = filedialog.askopenfilename(
+            title='Open a file',
+            initialdir='/',
+            filetypes=self.filetypes)
+        file_display.display['text'] = file_path
+
+        if file_path == '':
+            return
 
         try:
-            self.load_image(filename)
+            self.load_image(file_path)
         except IOError:
             self.display['text'] = 'Invalid image file'
             return
@@ -289,11 +364,11 @@ class Application():
         # Store index of dominant colours in original list
         self.dominant_colours_frequency = dominant_colours_frequency
         self.dominant_colours_brightness = dominant_colours_brightness
-        # When sorted by brightness, the first colour is the darkest. Store index of highest frequency colour where 0 is the most frequent
-        self.dominant_colour_indeces = [self.dominant_colours_frequency.index(
-            x) for x in self.dominant_colours_brightness]
+        # When sorted by brightness, the first colour is the darkest. Store index of highest frequency colour in the brightness list
+        self.dominant_colour_frequency_indeces = [
+            dominant_colours_frequency.index(x) for x in dominant_colours_brightness]
 
-    def recalc_colours(self, *_):
+    def recalc_input(self, *_):
         if self.input_image is None or self.suspend_recalc:
             return
         try:
@@ -312,6 +387,7 @@ class Application():
         self.suspend_recalc = True
         self.config_box.threshold_var.set(str(DEFAULT_THRESHOLD))
         self.config_box.num_colours_var.set(str(DEFAULT_MAX_COLOURS))
+        self.colour_transposer.file_path = None
         self.k_cluster_analysis(DEFAULT_THRESHOLD, None)
         num_dominant_colours = len(self.dominant_colours_frequency)
         self.config_box.num_colours_var.set(str(num_dominant_colours))
@@ -402,22 +478,20 @@ def calc_new_palette(input_colours, output_colours, input_palette_flat: str):
 
 @cache
 def k_cluster_main(num_colours: int, path: str):
-    target_px = 1024**2
     img = Image.open(path).convert("P", palette=Image.ADAPTIVE)
-
     num_px = img.width * img.height
+    target_px = 1024**2
     reduction_factor = max(sqrt(num_px/target_px), 1)
     if reduction_factor > 1:
         new_x = int(img.width/reduction_factor)
         new_y = int(img.height/reduction_factor)
         img = img.resize((new_x, new_y), Image.NEAREST)
-
     img_array = array(img.convert("RGB", palette=Image.ADAPTIVE))
     img2D = img_array.reshape(-1, 3)
     # Apply KMeans clustering
     n_init = 20
     kmeans_model = KMeans(n_clusters=num_colours,
-                          n_init=n_init, random_state=0, tol=1e-10, algorithm="elkan")
+                          n_init=n_init, random_state=0)
     cluster_labels = kmeans_model.fit_predict(img2D)
 
     # Get the cluster centres

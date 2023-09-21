@@ -28,13 +28,22 @@ If this automatic analysis has too many or too few colours, you can tweak the de
 The maximum number of colours the algorithm will detect.
 
 ### Input colours
-You can manually change the input colours if the detection is wrong. Usually the detection is good but this can add a little manual nudging.
+You can manually set the input colours if the detection misses important colours
 
 ## Getting an output
 
-When an image is loaded, two identical images of the camo will load.
-The detected colours will show on the right as both input and output
+When an image is loaded, the input image will show in its unmodified form on the left, and the resulting output image on the right.
 
 Press on a colour in output list, and select a new colour to see the the result in realtime.
 
 Save using the button at the bottom.
+
+## Using the colour transposer
+
+The colour transposer attempts to match the colours from a different image (transposed image) to the existing colours in the currently loaded image (input image)
+
+It has two modes to match colours by:
+#### Brightness:
+The brightest colour of the transposed image will be matched to the brightest of the input image, the darkest to the darkest etc.
+#### Frequency:
+The most frequent colour in the input image will be matched to the most frequent colour in the transposed image, the least frequent to the least frequent etc.
