@@ -273,7 +273,7 @@ class Application():
         transposer.file_path = file_path
         transposer.display['text'] = file_path
 
-        return self.transpose_colours(transposer)
+        self.transpose_colours(transposer)
 
     def transpose_colours(self, transposer):
         num_colours = int(self.config_box.num_colours_var.get())
@@ -463,7 +463,7 @@ def calc_new_palette(input_colours, output_colours, input_palette_flat):
             continue
         # Weight the output colour based on the distance to the closest colour
         output_pixel = zeros(3, dtype=uint8)
-        closest_distances = distances[closest_indeces]**2
+        closest_distances = distances[closest_indeces]
         total_distance = sum(closest_distances)
         weights_unnormal = 1 - closest_distances/total_distance
         weights = weights_unnormal/sum(weights_unnormal)
@@ -498,7 +498,6 @@ def k_cluster_main(num_colours: int, path: str):
     rgb_colours = cluster_centres.astype(int)
     quantized_img = Image.fromarray(
         reshape(rgb_colours[cluster_labels], (img_array.shape)).astype(uint8))
-
     # Get the frequency of each cluster
     num_pixels = img.width * img.height
     dominant_colours = quantized_img.getcolors(num_pixels)
