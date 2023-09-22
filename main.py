@@ -4,7 +4,7 @@
 from math import sqrt
 import tkinter as tk
 from tkinter import Frame, filedialog, messagebox, colorchooser
-import tkinter.ttk as ttk
+from tkinter import ttk
 from PIL import Image, ImageTk, ImageColor
 from functools import partial, cache
 from numpy import array, uint8, float64, reshape, append, argpartition, linalg, empty, array_equal, zeros
@@ -27,6 +27,7 @@ class FileDisplay(tk.Frame):
         self.button.pack(side=tk.LEFT)
         self.display.pack(side=tk.LEFT)
 
+
 class ColourTransposer(tk.Frame):
     def __init__(self, parent: Frame, root: Frame, button_text: str, default_text: str, command: callable):
         super().__init__(parent)
@@ -35,7 +36,7 @@ class ColourTransposer(tk.Frame):
         self.file_path = None
         self.button = tk.Button(self, text=button_text,
                                 command=lambda: command(self))
-        
+
         self.instruction = tk.Label(self, text="Match transpose colours by:")
 
         self.transpose_modes = ["Brightness", "Frequency"]
@@ -43,9 +44,8 @@ class ColourTransposer(tk.Frame):
         self.transpose_mode.trace("w", self.transpose_mode_changed)
         self.transpose_mode_dropdown = ttk.Combobox(
             self, textvariable=self.transpose_mode, values=self.transpose_modes)
-        
-        self.display = tk.Label(self, text=default_text)
 
+        self.display = tk.Label(self, text=default_text)
 
         self.button.pack(side=tk.LEFT)
         self.instruction.pack(side=tk.LEFT, padx=35)
@@ -59,9 +59,6 @@ class ColourTransposer(tk.Frame):
         if self.file_path is None:
             return
         self.root.application.transpose_colours(self)
-        
-
-
 
 
 class ImageFrame(tk.Frame):
@@ -156,6 +153,7 @@ class ColourBar(tk.Frame):
         self.set_button_colour(button, colour)
         self.root.application.calculate_output()
 
+
 class ColourBarGroup(tk.Frame):
     def __init__(self, parent: Frame, root: Frame):
         super().__init__(parent)
@@ -241,7 +239,8 @@ class Application():
             root, root, 'Load Camo', 'No file selected', self.select_image_file)
         self.camo_load_frame.grid(row=0, column=0, columnspan=3, sticky=tk.W)
 
-        self.colour_transposer = ColourTransposer(root, root, 'Transpose Colours From Camo', "no file selected", self.transpose_colours_dialog)
+        self.colour_transposer = ColourTransposer(
+            root, root, 'Transpose Colours From Camo', "no file selected", self.transpose_colours_dialog)
         self.colour_transposer.grid(row=1, column=0, columnspan=3, sticky=tk.W)
 
         self.config_box = ConfigBox(root, root)
@@ -267,10 +266,10 @@ class Application():
             title='Open a file',
             initialdir='/',
             filetypes=self.filetypes)
-        
+
         if file_path == '':
             return
-        
+
         transposer.file_path = file_path
         transposer.display['text'] = file_path
 
@@ -279,22 +278,24 @@ class Application():
     def transpose_colours(self, transposer):
         num_colours = int(self.config_box.num_colours_var.get())
         try:
-            colours_frequency, colours_brightness = k_cluster_main(num_colours, transposer.file_path)
-            if len(colours_frequency) <  num_colours:
-                self.config_box.num_colours_var.set(str(len(colours_frequency)))
+            colours_frequency, colours_brightness = k_cluster_main(
+                num_colours, transposer.file_path)
+            if len(colours_frequency) < num_colours:
+                self.config_box.num_colours_var.set(
+                    str(len(colours_frequency)))
                 # self.recalc_input()
 
             if transposer.transpose_mode.get() == transposer.transpose_modes[0]:
                 new_palette = colours_brightness
             else:
-                new_palette = [colours_frequency[x] for x in self.dominant_colour_frequency_indeces]
-                
+                new_palette = [colours_frequency[x]
+                               for x in self.dominant_colour_frequency_indeces]
+
             self.colour_bar_group.output_bar.update_colours(new_palette)
             self.calculate_output()
         except (IOError, AttributeError) as e:
             transposer.display['text'] = e
             return
-
 
     def select_image_file(self, file_display: FileDisplay):
         file_path = filedialog.askopenfilename(
@@ -399,7 +400,6 @@ class Application():
         self.colour_bar_group.set_both_colours(
             self.dominant_colours_brightness)
         self.calculate_output()
-
 
     def calculate_output(self):
         print("Calculating output in 3d")
