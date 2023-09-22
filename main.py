@@ -421,7 +421,6 @@ class Application():
             input_colours, output_colours, input_palette_flat)
         # Flatten the output palette
         output_img = input_img.copy()
-        output_palette = list(output_palette.astype(uint8).flatten())
         output_img.putpalette(output_palette)
         output_img = output_img.convert("RGB")
         # flag_img.convert("RGB").show()
@@ -434,7 +433,7 @@ class Application():
 
 
 @cache
-def calc_new_palette(input_colours, output_colours, input_palette_flat: str):
+def calc_new_palette(input_colours, output_colours, input_palette_flat):
     # Palette provied as str so it can be cached
     input_palette = array((input_palette_flat), dtype=uint8).reshape(-1, 3)
     input_colours = array(input_colours, dtype=uint8)
@@ -473,7 +472,7 @@ def calc_new_palette(input_colours, output_colours, input_palette_flat: str):
         # Normalise the output pixel
         output_palette = append(
             output_palette, output_pixel.reshape(1, 3), axis=0)
-    return output_palette
+    return list(output_palette.astype(uint8).flatten())
 
 
 @cache
