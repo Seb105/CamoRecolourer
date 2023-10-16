@@ -2,6 +2,7 @@
 # to select a file and then prints the file path to the console.
 
 from math import sqrt
+from pathlib import Path
 import tkinter as tk
 from tkinter import Frame, filedialog, messagebox, colorchooser
 from tkinter import ttk
@@ -13,7 +14,7 @@ from ast import literal_eval
 
 DEFAULT_THRESHOLD = .025
 DEFAULT_MAX_COLOURS = 1
-VERSION = "v0.4.0"
+VERSION = "v0.4.1"
 
 
 class FileDisplay(tk.Frame):
@@ -321,6 +322,10 @@ class Application():
             filetypes=self.filetypes)
         if file_path == '':
             return
+        # If file has invalid extension, add .png
+        file_path = Path(file_path)
+        if file_path.suffix not in Image.registered_extensions():
+            file_path = file_path.with_suffix('.png')
         try:
             self.output_image.save(file_path)
             file_display.display['text'] = f"Saved to {file_path}"
