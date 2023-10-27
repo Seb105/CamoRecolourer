@@ -6,15 +6,15 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import Frame, filedialog, messagebox, colorchooser
 from tkinter import ttk
-from PIL import Image, ImageTk, ImageColor
+from PIL import Image, ImageTk, ImageColor, ImageDraw
 from functools import partial, cache
-from numpy import array, uint8, float64, reshape, append, argpartition, linalg, empty, array_equal, zeros
+from numpy import array, median, uint8, float64, reshape, append, argpartition, linalg, empty, array_equal, zeros
 from sklearn.cluster import KMeans
 from ast import literal_eval
 
 DEFAULT_THRESHOLD = .025
 DEFAULT_MAX_COLOURS = 1
-VERSION = "v0.4.1"
+VERSION = "v0.5.0"
 
 
 class FileDisplay(tk.Frame):
@@ -27,6 +27,7 @@ class FileDisplay(tk.Frame):
         self.display = tk.Label(self, text=default_text)
         self.button.pack(side=tk.LEFT)
         self.display.pack(side=tk.LEFT)
+        self.last_file_path: str = None
 
 
 class ColourTransposer(tk.Frame):
@@ -70,22 +71,44 @@ class ImageFrame(tk.Frame):
         self.image = None
         self.label = tk.Label(self, text=name)
         self.label.pack(side=tk.TOP)
-        self.canvas = tk.Canvas(
+        self.image_canvas = tk.Canvas(
             self, bg="Grey", highlightbackground="black", highlightthickness=1)
         self.preview_size = preview_size
-        self.canvas.configure(width=preview_size, height=preview_size)
-        self.canvas.pack(side=tk.TOP)
+        self.image_canvas.configure(width=preview_size, height=preview_size)
+        self.image_canvas.pack(side=tk.TOP)
+        self.histogram_scale = self.get_histogram_scale()
+        self.histogram_canvas = tk.Canvas(
+            self, bg="Grey", highlightbackground="black", highlightthickness=1)
+        self.histogram_canvas.configure(
+            width=preview_size, height=256*self.histogram_scale)
+        self.histogram_canvas.pack(side=tk.TOP)
 
     def set_image(self, image: Image.Image):
-        canvas_width = self.canvas.winfo_width()
-        canvas_height = self.canvas.winfo_height()
+        canvas_width = self.image_canvas.winfo_width()
+        canvas_height = self.image_canvas.winfo_height()
         width, height = image.size
         scale = min(canvas_width/width, canvas_height/height)
         self.input_resized = image.convert("RGB").resize(
             (int(width*scale), int(height*scale)), Image.LANCZOS)
-        self.photo_image = ImageTk.PhotoImage(self.input_resized)
-        self.canvas.create_image(
-            self.preview_size//2, self.preview_size//2, image=self.photo_image)
+        self.image_photo_image = ImageTk.PhotoImage(self.input_resized)
+        self.image_canvas.delete("all")
+        self.image_canvas.create_image(
+            self.preview_size//2, self.preview_size//2, image=self.image_photo_image)
+        self.draw_histogram(image)
+
+    def draw_histogram(self, Image: Image.Image):
+        width, height = self.histogram_canvas.winfo_width(
+        ), self.histogram_canvas.winfo_height()
+        histogram_image = create_histogram(Image, (width, height))
+        self.histogram_photo_image = ImageTk.PhotoImage(histogram_image)
+        self.histogram_canvas.delete("all")
+        self.histogram_canvas.create_image(
+            0, 0, image=self.histogram_photo_image, anchor=tk.NW)
+
+    def get_histogram_scale(self):
+        canvas_width = self.image_canvas.winfo_width()
+        histogram_width = canvas_width/3
+        return max(1, int(histogram_width/256))
 
 
 class InputOutputFrame(tk.Frame):
@@ -258,19 +281,22 @@ class Application():
             root, root, 'Save Camo', 'No destination selected', self.save_image)
         self.camo_save_frame.grid(row=3, column=0, sticky=tk.W)
 
+        self.camo_save_as_layers_frame = FileDisplay(
+            root, root, 'Save Camo as Layers', 'No destination selected', self.save_as_layers)
+        self.camo_save_as_layers_frame.grid(row=4, column=0, sticky=tk.W)
+
     def transpose_colours_dialog(self, transposer: ColourTransposer):
         if self.input_image is None:
             transposer.display['text'] = "No input image selected!"
             return
 
+        previous_file_path = transposer.file_path or '/'
         file_path = filedialog.askopenfilename(
             title='Open a file',
-            initialdir='/',
+            initialdir=previous_file_path,
             filetypes=self.filetypes)
-
         if file_path == '':
             return
-
         transposer.file_path = file_path
         transposer.display['text'] = file_path
 
@@ -299,15 +325,17 @@ class Application():
             return
 
     def select_image_file(self, file_display: FileDisplay):
+        initial_dir = file_display.last_file_path or '/'
         file_path = filedialog.askopenfilename(
             title='Open a file',
-            initialdir='/',
+            initialdir=initial_dir,
             filetypes=self.filetypes)
         file_display.display['text'] = file_path
 
         if file_path == '':
             return
 
+        file_display.last_file_path = file_path
         try:
             self.load_image(file_path)
         except IOError:
@@ -316,12 +344,14 @@ class Application():
         self.reset_current_image()
 
     def save_image(self, file_display: FileDisplay):
+        last_file_path = file_display.last_file_path
         file_path = filedialog.asksaveasfilename(
             title='Save file',
-            initialdir='/',
+            initialdir=last_file_path,
             filetypes=self.filetypes)
         if file_path == '':
             return
+        file_display.last_file_path = str(last_file_path)
         # If file has invalid extension, add .png
         file_path = Path(file_path)
         if file_path.suffix not in Image.registered_extensions():
@@ -433,8 +463,87 @@ class Application():
         self.output_image = output_img
         self.input_output_frame.output_frame.set_image(output_img)
 
+    def save_as_layers(self, file_display: FileDisplay):
+        initial_dir = file_display.last_file_path or '/'
+        path = filedialog.asksaveasfilename(
+            title='Save file',
+            initialdir=initial_dir,
+            filetypes=self.filetypes)
+        if path == '':
+            return
+        file_display.last_file_path = path
+        # Forcibly add .png extension
+        path = Path(path).with_suffix('.png')
+        try:
+            seperate_layers(self.output_image,
+                            self.dominant_colours_brightness, path)
+            file_display.display['text'] = f"Saved to {path}"
+        except IOError:
+            messagebox.showerror(
+                "Error", "Could not save file. Please try again.")
+            return
+
     def run(self):
         self.root.mainloop()
+
+
+def seperate_layers(img: Image.Image, input_colours: list[tuple[int, int, int]], path: Path):
+    # Palettise image
+    if len(input_colours) < 2:
+        return
+    input_colours = array(input_colours, dtype=uint8)
+    img = img.convert("P", palette=Image.ADAPTIVE)
+    # Get palette as 2d array
+    palette = array(img.getpalette(), dtype=uint8).reshape(-1, 3)
+    palette_zeros = zeros(palette.shape, dtype=uint8)
+    # For each colour in the palette, find the closest 2 colours in the input palette.
+    # Use the distance to build an alpha mask based on the distance to the closest colour and the distance to the second closest colour
+    output_palettes = [palette_zeros.copy() for _ in range(len(input_colours))]
+    for i, pixel in enumerate(palette):
+        # Find the 2 closest colours in input_colours
+        distances = linalg.norm(abs(input_colours.astype(
+            float64) - pixel.astype(float64)), axis=1)
+        # Get closest 2 colours
+        closest_indeces = argpartition(
+            distances, 1)[:2]
+        # If the closest colour is the same as the input colour, add it to the output palette from the same index
+        closest_index = closest_indeces[0]
+        closest_pixel = input_colours[closest_index]
+        closest_palette = output_palettes[closest_index]
+        if array_equal(closest_pixel, pixel):
+            closest_palette[i] = [255, 255, 255]
+            continue
+        # If neither of the closest colours are the same as the input colour, set to black
+        second_closest_index = closest_indeces[1]
+
+        distance_to_closest = distances[closest_index]
+        distance_to_second_closest = distances[second_closest_index]
+        total_distance = distance_to_closest + distance_to_second_closest
+
+        # # Weight the output colour based on the distance to the closest colour
+        if distance_to_closest <= total_distance*0.5:
+            closest_palette[i] = [255, 255, 255]
+        # threshhold = 0.25
+        # threshhold_distance = total_distance*threshhold
+        # if distance_to_closest <= threshhold_distance:
+        #     closest_palette[i] = [255, 255, 255]
+        # else:
+        #     distance_remaining = total_distance - threshhold_distance
+        #     weight = 1-(distance_to_closest/distance_remaining)
+        #     brightness = int(255*weight)
+        #     closest_palette[i] = [brightness, brightness, brightness]
+
+    # Save each image
+    for i, output_palette in enumerate(output_palettes):
+        output_path = path.with_name(f"{path.stem}_{i}{path.suffix}")
+        output_alpha = img.copy()
+        output_alpha.putpalette(output_palette.flatten())
+        output_alpha = output_alpha.convert("L")
+        # output_alpha.show()
+        output_img = img.copy().convert("RGB")
+        output_img.putalpha(output_alpha)
+        # output_img.show()
+        output_img.save(output_path)
 
 
 @cache
@@ -450,17 +559,15 @@ def calc_new_palette(input_colours, output_colours, input_palette_flat):
             output_palette = append(
                 output_palette, output_colours[0].reshape(1, 3), axis=0)
             continue
-        # Treat pixel as 3d coordinate, find closest 4 input colours in input_colours
-        # Find the 3 closest colours in input_colours
+        # Treat pixel as 3d coordinate, find closest 2 input colours in input_colours
+        # Find the 2 closest colours in input_colours
         distances = linalg.norm(abs(input_colours.astype(
             float64) - input_pixel.astype(float64)), axis=1)
-        # Get closest 3 colours
+        # Get closest 2 colours
         closest_indeces = argpartition(
             distances, num_weight_pixels-1)[:num_weight_pixels]
 
         # If the closest colour is the same as the input colour, add it to the output palette from the same index
-        if array_equal(array([152, 128, 102], dtype=uint8), input_pixel):
-            print("Found 152, 128, 102")
         closest_pixel = input_colours[closest_indeces[0]]
         if array_equal(closest_pixel, input_pixel):
             output_palette = append(
@@ -484,7 +591,7 @@ def calc_new_palette(input_colours, output_colours, input_palette_flat):
 def k_cluster_main(num_colours: int, path: str):
     img = Image.open(path).convert("P", palette=Image.ADAPTIVE)
     num_px = img.width * img.height
-    target_px = 1024**2
+    target_px = 256**2
     reduction_factor = max(sqrt(num_px/target_px), 1)
     if reduction_factor > 1:
         new_x = int(img.width/reduction_factor)
@@ -499,8 +606,14 @@ def k_cluster_main(num_colours: int, path: str):
     cluster_labels = kmeans_model.fit_predict(img2D)
 
     # Get the cluster centres
-    cluster_centres = kmeans_model.cluster_centers_
-    rgb_colours = cluster_centres.astype(int)
+    # cluster_centres = kmeans_model.cluster_centers_
+    cluster_medians = empty((num_colours, 3), dtype=float64)
+    for i in range(num_colours):
+        cluster = img2D[cluster_labels == i]
+        # Sort cluster by brightness
+        cluster = sorted(cluster, key=lambda x: sqrt(sum(y**2 for y in x)))
+        cluster_medians[i] = median(cluster, axis=0)
+    rgb_colours = cluster_medians.astype(int)
     quantized_img = Image.fromarray(
         reshape(rgb_colours[cluster_labels], (img_array.shape)).astype(uint8))
     # Get the frequency of each cluster
@@ -511,6 +624,42 @@ def k_cluster_main(num_colours: int, path: str):
     dominant_colours_brightness = sorted(
         dominant_colours_frequency, key=lambda x: sqrt(sum(y**2 for y in x)))
     return dominant_colours_frequency, dominant_colours_brightness
+
+
+def create_histogram(img: Image.Image, image_size: tuple[int, int]) -> Image.Image:
+    histogram_length = 256
+    histogram_size = (histogram_length, histogram_length)
+    img = img.convert("RGB")
+    bands = tuple(x.histogram() for x in img.split())
+    num_pixels = max(img.histogram())
+    band_images = []
+    alpha = Image.new("L", histogram_size, "black")
+    alpha_draw = ImageDraw.Draw(alpha)
+    for band in bands:
+        band_image = Image.new("L", histogram_size, "black")
+        draw = ImageDraw.Draw(band_image)
+        for x_val, y_val in enumerate(band):
+            y_val = int(y_val/num_pixels*histogram_length)
+            x = x_val
+            y = y_val
+            upper_left = (x, histogram_length-y)
+            lower_right = (x, histogram_length)
+            draw.rectangle((upper_left, lower_right), fill=255)
+            alpha_draw.rectangle((upper_left, lower_right), fill=255)
+        band_images.append(band_image)
+        # band_image.show()
+    histogram = Image.merge("RGB", band_images)
+    histogram.putalpha(alpha)
+    lines_overlay = Image.new("RGBA", histogram_size, (128, 128, 128, 255))
+    lines_draw = ImageDraw.Draw(lines_overlay)
+    for i in range(0, histogram_length, 32):
+        lines_draw.line((i, 0, i, histogram_length), fill=(0, 0, 0, 255))
+        lines_draw.line((0, i, histogram_length, i), fill=(0, 0, 0, 255))
+    histogram = Image.alpha_composite(lines_overlay, histogram)
+    # histogram.show()
+    histogram = histogram.resize(image_size, Image.NEAREST)
+    # histogram.show()
+    return histogram
 
 
 def main():
