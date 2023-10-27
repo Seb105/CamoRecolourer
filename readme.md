@@ -36,7 +36,10 @@ When an image is loaded, the input image will show in its unmodified form on the
 
 Press on a colour in output list, and select a new colour to see the the result in realtime.
 
-Save using the button at the bottom.
+Save using the buttons at the bottom.
+
+'Save' will save the output image to a single file
+'Save as layers' will attempt to split the image into layers, separated by colour
 
 ## Using the colour transposer
 
