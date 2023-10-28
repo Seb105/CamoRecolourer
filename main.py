@@ -8,13 +8,14 @@ from tkinter import Frame, filedialog, messagebox, colorchooser
 from tkinter import ttk
 from PIL import Image, ImageTk, ImageColor, ImageDraw
 from functools import partial, cache
-from numpy import array, median, uint8, float64, reshape, append, argpartition, linalg, empty, array_equal, zeros
+from numpy import array, uint8, float64, reshape, append, argpartition, linalg, empty, array_equal, zeros
 from sklearn.cluster import KMeans
+from scipy.stats import mode
 from ast import literal_eval
 
 DEFAULT_THRESHOLD = .025
 DEFAULT_MAX_COLOURS = 1
-VERSION = "v0.5.0"
+VERSION = "v0.5.1"
 
 
 class FileDisplay(tk.Frame):
@@ -607,13 +608,12 @@ def k_cluster_main(num_colours: int, path: str):
 
     # Get the cluster centres
     # cluster_centres = kmeans_model.cluster_centers_
-    cluster_medians = empty((num_colours, 3), dtype=float64)
+    cluster_modes = empty((num_colours, 3), dtype=float64)
     for i in range(num_colours):
         cluster = img2D[cluster_labels == i]
-        # Sort cluster by brightness
-        cluster = sorted(cluster, key=lambda x: sqrt(sum(y**2 for y in x)))
-        cluster_medians[i] = median(cluster, axis=0)
-    rgb_colours = cluster_medians.astype(int)
+        cluster_mode = mode(cluster, axis=0).mode
+        cluster_modes[i] = cluster_mode
+    rgb_colours = cluster_modes.astype(int)
     quantized_img = Image.fromarray(
         reshape(rgb_colours[cluster_labels], (img_array.shape)).astype(uint8))
     # Get the frequency of each cluster
