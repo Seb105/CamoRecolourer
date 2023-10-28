@@ -608,11 +608,13 @@ def k_cluster_main(num_colours: int, path: str):
 
     # Get the cluster centres
     # cluster_centres = kmeans_model.cluster_centers_
-    cluster_modes = empty((num_colours, 3), dtype=float64)
+    cluster_modes = empty((0, 3), dtype=float64)
     for i in range(num_colours):
         cluster = img2D[cluster_labels == i]
+        if len(cluster) == 0:
+            continue
         cluster_mode = mode(cluster, axis=0).mode
-        cluster_modes[i] = cluster_mode
+        cluster_modes = append(cluster_modes, cluster_mode, axis=0)
     rgb_colours = cluster_modes.astype(int)
     quantized_img = Image.fromarray(
         reshape(rgb_colours[cluster_labels], (img_array.shape)).astype(uint8))
