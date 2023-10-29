@@ -605,6 +605,7 @@ def k_cluster_main(num_colours: int, path: str):
     kmeans_model = KMeans(n_clusters=num_colours,
                           n_init=n_init, random_state=0)
     cluster_labels = kmeans_model.fit_predict(img2D)
+    # Sort clusters by frequency
 
     # Get the cluster centres
     # cluster_centres = kmeans_model.cluster_centers_
@@ -613,11 +614,11 @@ def k_cluster_main(num_colours: int, path: str):
         cluster = img2D[cluster_labels == i]
         if len(cluster) == 0:
             continue
-        cluster_mode = mode(cluster, axis=0).mode
+        cluster_mode = mode(cluster, axis=0, keepdims=True).mode
         cluster_modes = append(cluster_modes, cluster_mode, axis=0)
     rgb_colours = cluster_modes.astype(int)
     quantized_img = Image.fromarray(
-        reshape(rgb_colours[cluster_labels], (img_array.shape)).astype(uint8))
+        rgb_colours.reshape(1, len(cluster_modes), 3).astype(uint8), mode="RGB")
     # Get the frequency of each cluster
     num_pixels = img.width * img.height
     dominant_colours = quantized_img.getcolors(num_pixels)
